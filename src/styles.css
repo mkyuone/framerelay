@@ -20,7 +20,6 @@ html,
 body {
   min-height: 100%;
   background-color: var(--page-background, #101d40);
-  overscroll-behavior-y: none;
 }
 #root {
   min-height: 100vh;
