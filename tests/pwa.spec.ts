@@ -159,6 +159,6 @@ test('the page and overscroll background follow the configured theme', async ({ 
   await page.goto('/printing');
   await expect(page.locator('html')).toHaveCSS('background-color', 'rgb(23, 53, 104)');
   await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(23, 53, 104)');
-  await expect(page.locator('html')).toHaveCSS('overscroll-behavior-y', 'auto');
+  await expect(page.locator('html')).toHaveCSS('overscroll-behavior-y', 'none');
   await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#173568');
 });
