@@ -1,0 +1,66 @@
+{
+  "name": "framerelay",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:server": "tsx watch server/index.ts",
+    "dev:client": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "start": "tsx server/index.ts",
+    "test": "tsx --test server/workflow.test.ts",
+    "test:e2e": "playwright test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.0.2",
+    "@fastify/multipart": "^9.2.1",
+    "@fastify/rate-limit": "^10.3.0",
+    "@fastify/static": "^10.1.8",
+    "@fontsource-variable/inter": "^5.3.0",
+    "@image-ultra/react": "0.1.1",
+    "@mantine/core": "^9.7.4",
+    "@mantine/hooks": "^9.7.4",
+    "@zxing/browser": "^0.1.5",
+    "better-sqlite3": "^12.4.1",
+    "dotenv": "^17.2.3",
+    "drizzle-orm": "^0.45.4",
+    "fastify": "^5.6.2",
+    "idb-keyval": "^6.2.2",
+    "lucide-react": "^0.468.0",
+    "playwright": "^1.56.1",
+    "qrcode": "^1.5.4",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-router-dom": "^7.9.5",
+    "sharp": "^0.35.5",
+    "tsx": "^4.20.6",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.1",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^24.10.0",
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "@vitejs/plugin-react": "^5.0.4",
+    "prettier": "^3.9.10",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.12"
+  },
+  "overrides": {
+    "@fastify/static": {
+      "glob": "^14.0.3"
+    }
+  },
+  "allowScripts": {
+    "better-sqlite3@12.11.1": true,
+    "sharp@0.35.5": true,
+    "esbuild@0.28.2": true
+  }
+}
