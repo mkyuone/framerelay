@@ -11,7 +11,7 @@ npm install
 npm run dev
 ```
 
-Open [FrameRelay](http://127.0.0.1:5173). The first run creates a gitignored `.env` containing a randomly generated `SETUP_PASSCODE`. Open that file locally, then visit **Setup**, unlock it with that passcode, and set the shared staff passcode. The event name is optional; no organization or photobooth details are collected. There are no default credentials or seeded events.
+Open [FrameRelay](http://127.0.0.1:5173). The first run creates a gitignored `.env` with local settings and prints a randomly generated initial operator passcode once in the terminal. Save it, then visit **Setup**, unlock it with that passcode, and set the shared staff passcode. The event name is optional; no organization or photobooth details are collected. There are no default credentials or seeded events.
 
 For full-resolution server export, install Chromium using the same cache location as `.env`:
 
@@ -41,11 +41,22 @@ Grid thumbnails fill a 3:2 frame without letterboxing; this display crop never c
 
 ## Setup and clearing data
 
-The operator can set an optional display name, staff passcode, delivery settings, colors and default footer text. Settings can be changed at any time and apply to the current workflow. Changing the staff passcode signs staff out.
+The operator can set an optional display name, staff passcode, delivery settings, colors and default footer text. Settings can be changed at any time and apply to the current workflow. Changing the staff passcode signs staff out. Under **Change operator passcode**, an operator can change the setup passcode after entering the current one; all operator sessions are signed out. Operator passcodes are stored as salted scrypt hashes.
 
 When work is complete, an operator can choose **Clear all data** in Setup and type `CLEAR` to confirm. This deletes all server-side tickets, photos, print queues and download links, including historical records from previous versions. Settings and the staff passcode are retained; staff must sign in again. Wait for uploads and exports to finish, and back up anything needed before clearing. Browser-local drafts or uploads on other devices and separate backups are not erased by the server reset.
 
 Existing active event settings continue to work after upgrading. Historical downloads remain available until data is cleared; they keep their historical settings. If no event was active, set up the stations before use.
+
+To reset a forgotten operator passcode on a server with direct shell access, use the application account and its existing data directory. The following example is for the systemd deployment at `/opt/framerelay/current` and `/var/lib/framerelay`:
+
+```bash
+cd /opt/framerelay/current
+read -rs -p 'New operator passcode (12–128 characters): ' FRAMERELAY_NEW_PASSCODE; echo
+printf '%s' "$FRAMERELAY_NEW_PASSCODE" | sudo -u framerelay env DATA_DIR=/var/lib/framerelay /usr/bin/node --import tsx scripts/reset-operator.ts
+unset FRAMERELAY_NEW_PASSCODE
+```
+
+The recovery command reads from standard input, stores only a new hash and signs out existing operator sessions. It does not delete customer data or require a restart. For Docker, use `docker compose exec -T app node --import tsx scripts/reset-operator.ts` as the receiving command instead. If a legacy deployment still has `SETUP_PASSCODE` in its environment file, remove it after the first successful start with this version; it is only an initial bootstrap value and will not reset an existing account.
 
 Inter is bundled and served locally through Fontsource, including the photo editor. The editor, QR scanner and all application assets run locally; no CDN, analytics, email, external storage or payment integration is required.
 
@@ -65,16 +76,19 @@ Install Docker/Compose on a Linux VPS, point a hostname to it, and open ports 80
 
 ```dotenv
 DOMAIN=photos.example.org
-SETUP_PASSCODE=replace-with-a-long-random-operator-passcode
 ```
 
 ```sh
+read -rs -p 'Initial operator passcode (12–128 characters): ' FRAMERELAY_INITIAL_PASSCODE; echo
+export SETUP_PASSCODE="$FRAMERELAY_INITIAL_PASSCODE"
 docker compose up -d --build
+unset SETUP_PASSCODE FRAMERELAY_INITIAL_PASSCODE
+docker compose up -d
 ```
 
 Caddy provides HTTPS. The application uses secure, HTTP-only cookies in production. Only Caddy exposes public ports; the application and SQLite remain behind it. Chromium and its Linux dependencies are installed by the Dockerfile.
 
-For a manual production start, set `NODE_ENV=production`, `PUBLIC_ORIGIN=https://your-hostname`, `HOST`, `PORT`, `SETUP_PASSCODE`, `DATA_DIR` and a writable `PLAYWRIGHT_BROWSERS_PATH`, run `npm run build`, and use `npm start` behind an HTTPS reverse proxy.
+For a manual production start, set `NODE_ENV=production`, `PUBLIC_ORIGIN=https://your-hostname`, `HOST`, `PORT`, an initial `SETUP_PASSCODE` on first start, `DATA_DIR` and a writable `PLAYWRIGHT_BROWSERS_PATH`, run `npm run build`, and use `npm start` behind an HTTPS reverse proxy.
 
 Keep one application instance against the SQLite volume. Size storage from expected JPEG sizes × captures/customer × customers, allowing room for previews, finals and backups. Validate memory usage with actual camera files before the event.
 
@@ -82,7 +96,7 @@ Keep one application instance against the SQLite volume. Size storage from expec
 
 Stop ingestion/editing, briefly stop the app, then copy the **entire data directory/volume**, including SQLite and every image directory, to a protected backup. Restart the app after the copy. Restore the full directory into the same layout while the app is stopped; the database and files belong together. Test a restored copy before event day.
 
-Do not decommission hosting while downloads are promised. Disable downloads deliberately, communicate availability externally, then stop the app and handle stored images/backups according to the organizer's retention policy. There is no in-app bulk deletion tool.
+Do not decommission hosting while downloads are promised. Disable downloads deliberately, communicate availability externally, then stop the app and handle stored images/backups according to the organizer's retention policy. Use the in-app clear-data action when data should be deleted.
 
 ## Verification
 

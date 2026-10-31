@@ -1157,3 +1157,56 @@ test('native editor fills the workspace, locks crop ratios and preserves finetun
     await shot(page, `confirm-image-${viewport.width}.png`);
   }
 });
+
+test('setup edits settings and reset clears customer data after confirmation', async ({ page }) => {
+  await event(page.request);
+  const ticket = await seedTicket(page.request, 1);
+  await page.goto('/settings');
+  await expect(page.getByRole('heading', { name: 'Customize FrameRelay.' })).toBeVisible();
+  await page.getByLabel('Display name (optional)').fill('Fresh setup');
+  const save = page.waitForResponse(
+    (response) =>
+      response.url().endsWith('/api/settings') && response.request().method() === 'POST',
+  );
+  await page.getByRole('button', { name: 'Save settings' }).click();
+  expect((await save).ok()).toBeTruthy();
+  await page.reload();
+  await expect(page.getByLabel('Display name (optional)')).toHaveValue('Fresh setup');
+  await page.getByRole('button', { name: 'Clear all data' }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('button', { name: 'Clear all data' })).toBeDisabled();
+  await dialog.getByLabel('Type CLEAR to confirm').fill('CLEAR');
+  await expect(dialog.getByRole('button', { name: 'Clear all data' })).toBeEnabled();
+  await shot(page, 'reset-confirmation.png');
+  const reset = page.waitForResponse(
+    (response) => response.url().endsWith('/api/reset') && response.request().method() === 'POST',
+  );
+  await dialog.getByRole('button', { name: 'Clear all data' }).click();
+  expect((await reset).ok()).toBeTruthy();
+  await expect(dialog).toBeHidden();
+  expect((await page.request.get(`/api/tickets/${ticket.id}`)).status()).toBe(404);
+  expect(await (await page.request.get('/api/tickets/recent')).json()).toEqual([]);
+  await page.reload();
+  await expect(page.getByLabel('Display name (optional)')).toHaveValue('Fresh setup');
+  const staffLogin = await page.request.post('/api/login', {
+    data: { kind: 'staff', passcode: settings.staffPasscode },
+  });
+  expect(staffLogin.ok()).toBeTruthy();
+});
+
+test('operator changes the setup passcode and signs in again', async ({ page }) => {
+  await login(page.request);
+  await page.goto('/settings');
+  await page.getByText('Change operator passcode', { exact: true }).first().click();
+  await page.getByLabel('Current operator passcode').fill('browser-test-operator-passcode');
+  await page
+    .getByLabel('New operator passcode', { exact: true })
+    .fill('browser-new-operator-passcode');
+  await page.getByLabel('Confirm new operator passcode').fill('browser-new-operator-passcode');
+  await shot(page, 'operator-passcode.png');
+  await page.getByRole('button', { name: 'Change operator passcode' }).click();
+  await expect(page.getByLabel('Operator passcode', { exact: true })).toBeVisible();
+  await page.getByLabel('Operator passcode', { exact: true }).fill('browser-new-operator-passcode');
+  await page.getByRole('button', { name: 'Unlock setup' }).click();
+  await expect(page.getByRole('heading', { name: 'Customize FrameRelay.' })).toBeVisible();
+});

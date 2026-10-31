@@ -4,6 +4,7 @@ import { mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { spawn } from 'node:child_process';
 import sharp from 'sharp';
 import { createEditState, FILTER_PRESETS, filterFromPreset } from '@image-ultra/react';
 import { createApp } from './app.ts';
@@ -145,6 +146,133 @@ test('ticket creation is idempotent and staff cannot change operator settings', 
   );
 });
 
+test('operator passcode changes require reauthentication, revoke sessions, and survive restart', async () => {
+  const other = await call(
+    'POST',
+    '/login',
+    { kind: 'operator', passcode: setupPasscode },
+    {} as ReturnType<typeof headers>,
+  );
+  const otherCookie = `fr_operator=${other.cookies[0].value}`;
+  const oldHash = (
+    store.sql.prepare('SELECT passcode_hash FROM operator_auth WHERE id = 1').get() as {
+      passcode_hash: string;
+    }
+  ).passcode_hash;
+  assert.ok(!oldHash.includes(setupPasscode));
+  assert.equal(
+    (
+      await call('POST', '/operator/passcode', {
+        currentPasscode: 'wrong',
+        newPasscode: 'new-operator-passcode',
+      })
+    ).statusCode,
+    403,
+  );
+  assert.equal(
+    (
+      await call('POST', '/operator/passcode', {
+        currentPasscode: setupPasscode,
+        newPasscode: 'short',
+      })
+    ).statusCode,
+    400,
+  );
+  assert.equal(
+    (
+      await call(
+        'POST',
+        '/operator/passcode',
+        { currentPasscode: setupPasscode, newPasscode: 'new-operator-passcode' },
+        { cookie: staffCookie, 'x-station-id': device },
+      )
+    ).statusCode,
+    401,
+  );
+  assert.equal(
+    (
+      await call('POST', '/operator/passcode', {
+        currentPasscode: setupPasscode,
+        newPasscode: 'new-operator-passcode',
+      })
+    ).statusCode,
+    200,
+  );
+  const nextHash = (
+    store.sql.prepare('SELECT passcode_hash FROM operator_auth WHERE id = 1').get() as {
+      passcode_hash: string;
+    }
+  ).passcode_hash;
+  assert.notEqual(oldHash, nextHash);
+  assert.ok(!nextHash.includes('new-operator-passcode'));
+  assert.equal(
+    (await call('POST', '/reset', {}, { cookie: otherCookie, 'x-station-id': device })).statusCode,
+    401,
+  );
+  await app.close();
+  ({ app, store } = await createApp({ root, setupPasscode, serveClient: false }));
+  assert.equal(
+    (
+      await call(
+        'POST',
+        '/login',
+        { kind: 'operator', passcode: setupPasscode },
+        {} as ReturnType<typeof headers>,
+      )
+    ).statusCode,
+    401,
+  );
+  assert.equal(
+    (
+      await call(
+        'POST',
+        '/login',
+        { kind: 'operator', passcode: 'new-operator-passcode' },
+        {} as ReturnType<typeof headers>,
+      )
+    ).statusCode,
+    200,
+  );
+});
+test('server recovery replaces the hash and revokes sessions without restarting the app', async () => {
+  const child = spawn(process.execPath, ['--import', 'tsx', 'scripts/reset-operator.ts'], {
+    env: { ...process.env, DATA_DIR: root },
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+  let stderr = '';
+  child.stderr.on('data', (chunk: Buffer) => {
+    stderr += chunk.toString();
+  });
+  child.stdin.end('recovered-operator-passcode');
+  const status = await new Promise<number | null>((resolve, reject) => {
+    child.once('error', reject);
+    child.once('close', resolve);
+  });
+  assert.equal(status, 0, stderr);
+  assert.equal((await call('POST', '/reset')).statusCode, 401);
+  assert.equal(
+    (
+      await call(
+        'POST',
+        '/login',
+        { kind: 'operator', passcode: setupPasscode },
+        {} as ReturnType<typeof headers>,
+      )
+    ).statusCode,
+    401,
+  );
+  assert.equal(
+    (
+      await call(
+        'POST',
+        '/login',
+        { kind: 'operator', passcode: 'recovered-operator-passcode' },
+        {} as ReturnType<typeof headers>,
+      )
+    ).statusCode,
+    200,
+  );
+});
 test('settings remain editable and preserve the staff passcode when omitted', async () => {
   const changed = await call('POST', '/settings', {
     ...settings,

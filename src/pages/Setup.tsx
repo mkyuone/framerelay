@@ -51,6 +51,9 @@ function SetupContent() {
   );
   const [resetOpen, setResetOpen] = useState(false);
   const [confirmation, setConfirmation] = useState('');
+  const [currentPasscode, setCurrentPasscode] = useState('');
+  const [newPasscode, setNewPasscode] = useState('');
+  const [repeatPasscode, setRepeatPasscode] = useState('');
   const update = (fields: Partial<Draft>) => setDraft((value) => ({ ...value, ...fields }));
   async function save() {
     await task.run(async () => {
@@ -234,6 +237,67 @@ function SetupContent() {
             </div>
           </form>
         </>
+        <details className="setup-options">
+          <summary>Change operator passcode</summary>
+          <form
+            className="setup-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (newPasscode !== repeatPasscode) {
+                task.setError('New passcodes do not match.');
+                return;
+              }
+              void task.run(async () => {
+                await post('/operator/passcode', { currentPasscode, newPasscode });
+                setCurrentPasscode('');
+                setNewPasscode('');
+                setRepeatPasscode('');
+                await refresh();
+              });
+            }}
+          >
+            <p>Changing the passcode signs out all operator sessions.</p>
+            <label>
+              Current operator passcode
+              <input
+                type="password"
+                autoComplete="current-password"
+                value={currentPasscode}
+                onChange={(e) => setCurrentPasscode(e.target.value)}
+                required
+                maxLength={128}
+              />
+            </label>
+            <label>
+              New operator passcode
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={newPasscode}
+                onChange={(e) => setNewPasscode(e.target.value)}
+                required
+                minLength={12}
+                maxLength={128}
+              />
+            </label>
+            <label>
+              Confirm new operator passcode
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={repeatPasscode}
+                onChange={(e) => setRepeatPasscode(e.target.value)}
+                required
+                minLength={12}
+                maxLength={128}
+              />
+            </label>
+            <Notice>{task.error}</Notice>
+            <Button primary type="submit" busy={task.busy}>
+              Change operator passcode
+            </Button>
+          </form>
+        </details>
         {current ? (
           <div className="setup-step-heading">
             <div>

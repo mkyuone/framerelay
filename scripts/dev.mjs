@@ -1,4 +1,5 @@
 import { existsSync, writeFileSync } from 'node:fs';
+import 'dotenv/config';
 import { randomBytes } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { resolve } from 'node:path';
@@ -6,19 +7,29 @@ import { resolve } from 'node:path';
 if (!existsSync('.env')) {
   writeFileSync(
     '.env',
-    `NODE_ENV=development\nHOST=127.0.0.1\nPORT=3001\nPUBLIC_ORIGIN=http://127.0.0.1:5173\nSETUP_PASSCODE=${randomBytes(18).toString('base64url')}\nDATA_DIR=./data\nPLAYWRIGHT_BROWSERS_PATH=./node_modules/.cache/ms-playwright\n`,
+    `NODE_ENV=development\nHOST=127.0.0.1\nPORT=3001\nPUBLIC_ORIGIN=http://127.0.0.1:5173\nDATA_DIR=./data\nPLAYWRIGHT_BROWSERS_PATH=./node_modules/.cache/ms-playwright\n`,
     { mode: 0o600 },
   );
-  console.log(
-    'Created .env with a private operator passcode. Open that file to use Settings → Event setup.',
-  );
+  console.log('Created .env with local development settings.');
+}
+let bootstrapPasscode = process.env.SETUP_PASSCODE;
+if (
+  !bootstrapPasscode &&
+  !existsSync(resolve(process.env.DATA_DIR ?? './data', 'framerelay.sqlite'))
+) {
+  bootstrapPasscode = randomBytes(18).toString('base64url');
+  console.log(`Initial operator passcode (save it now): ${bootstrapPasscode}`);
 }
 const commands = [
   [resolve('node_modules/tsx/dist/cli.mjs'), 'watch', 'server/index.ts'],
   [resolve('node_modules/vite/bin/vite.js'), '--host', '127.0.0.1'],
 ];
 const children = commands.map((args) =>
-  spawn(process.execPath, args, { stdio: 'inherit', windowsHide: true }),
+  spawn(process.execPath, args, {
+    stdio: 'inherit',
+    windowsHide: true,
+    env: { ...process.env, ...(bootstrapPasscode ? { SETUP_PASSCODE: bootstrapPasscode } : {}) },
+  }),
 );
 let stopping = false;
 function stop(code = 0) {

@@ -94,6 +94,7 @@ export function createStore(root: string) {
   sql.pragma('busy_timeout = 5000');
   sql.exec(`
     CREATE TABLE IF NOT EXISTS events (id TEXT PRIMARY KEY, config TEXT NOT NULL, staff_hash TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS operator_auth (id INTEGER PRIMARY KEY CHECK (id = 1), passcode_hash TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS auth (hash TEXT PRIMARY KEY, kind TEXT NOT NULL, event_id TEXT, expires INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS sessions (
       id TEXT PRIMARY KEY, event_id TEXT NOT NULL REFERENCES events(id), code TEXT NOT NULL UNIQUE,

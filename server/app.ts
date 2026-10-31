@@ -11,6 +11,12 @@ import { z } from 'zod';
 import { createStore, demand, digest, Problem } from './store.ts';
 import type { EventConfig } from '../shared/types.ts';
 import { safeRecipe } from './recipe.ts';
+import {
+  checkOperatorPasscode,
+  hashOperatorPasscode,
+  operatorHash,
+  setOperatorHash,
+} from './operator-auth.ts';
 
 export function hashPasscode(passcode: string) {
   const salt = randomBytes(16).toString('hex');
@@ -51,18 +57,23 @@ const patchSchema = z.object({
 
 export async function createApp(options: {
   root?: string;
-  setupPasscode: string;
+  setupPasscode?: string;
   origin?: string;
   production?: boolean;
   serveClient?: boolean;
 }) {
-  demand(
-    options.setupPasscode.length >= 12,
-    'SETUP_PASSCODE must contain at least 12 characters.',
-    500,
-  );
   const store = createStore(resolve(options.root ?? './data'));
-  const setupHash = hashPasscode(options.setupPasscode);
+  if (!operatorHash(store.sql)) {
+    if (
+      !options.setupPasscode ||
+      options.setupPasscode.length < 12 ||
+      options.setupPasscode.length > 128
+    ) {
+      store.close();
+      throw new Error('Set SETUP_PASSCODE (12–128 characters) to initialize the operator account.');
+    }
+    setOperatorHash(store.sql, hashOperatorPasscode(options.setupPasscode));
+  }
   const app = Fastify({
     logger: false,
     bodyLimit: 55 * 1024 * 1024,
@@ -182,18 +193,58 @@ export async function createApp(options: {
         .object({ passcode: z.string().max(128), kind: z.enum(['staff', 'operator']) })
         .parse(req.body);
       const event = store.active();
+      const verifiedHash = body.kind === 'operator' ? operatorHash(store.sql) : undefined;
       demand(
         body.kind === 'operator'
-          ? checkPasscode(body.passcode, setupHash)
+          ? checkOperatorPasscode(body.passcode, verifiedHash)
           : !!event && checkPasscode(body.passcode, store.staffHash(event.id)),
         'Passcode not recognized.',
         401,
       );
-      reply.setCookie(
-        body.kind === 'operator' ? 'fr_operator' : 'fr_staff',
-        store.login(body.kind, body.kind === 'staff' ? event!.id : null),
-        cookieOptions,
+      const token =
+        body.kind === 'operator'
+          ? store.sql
+              .transaction(() => {
+                demand(
+                  operatorHash(store.sql) === verifiedHash,
+                  'Passcode changed. Please sign in again.',
+                  401,
+                );
+                return store.login('operator', null);
+              })
+              .immediate()
+          : store.login('staff', event!.id);
+      reply.setCookie(body.kind === 'operator' ? 'fr_operator' : 'fr_staff', token, cookieOptions);
+      return { ok: true };
+    },
+  );
+  app.post(
+    '/api/operator/passcode',
+    { config: { rateLimit: { max: 8, timeWindow: '1 minute' } } },
+    async (req, reply) => {
+      operator(req);
+      const body = z
+        .object({ currentPasscode: z.string().max(128), newPasscode: z.string().min(12).max(128) })
+        .parse(req.body);
+      const verifiedHash = operatorHash(store.sql);
+      demand(
+        checkOperatorPasscode(body.currentPasscode, verifiedHash),
+        'Current operator passcode is incorrect.',
+        403,
       );
+      const replacementHash = hashOperatorPasscode(body.newPasscode);
+      store.sql
+        .transaction(() => {
+          operator(req);
+          demand(
+            operatorHash(store.sql) === verifiedHash,
+            'Passcode changed. Please sign in again.',
+            401,
+          );
+          setOperatorHash(store.sql, replacementHash);
+        })
+        .immediate();
+      reply.clearCookie('fr_operator', { path: '/' });
       return { ok: true };
     },
   );

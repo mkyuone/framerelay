@@ -3,7 +3,7 @@ services:
     build: .
     restart: unless-stopped
     environment:
-      SETUP_PASSCODE: ${SETUP_PASSCODE:?Set a strong operator passcode}
+      SETUP_PASSCODE: ${SETUP_PASSCODE:-}
       PUBLIC_ORIGIN: https://${DOMAIN:?Set the public hostname}
     volumes:
       - photos:/app/data
