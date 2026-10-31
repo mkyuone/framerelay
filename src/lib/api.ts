@@ -1,4 +1,5 @@
 import type { Ticket } from '../../shared/types';
+import { reportConnectionFailure, waitForConnection } from './connection';
 
 export class ApiError extends Error {
   constructor(
@@ -22,7 +23,7 @@ function stationId() {
 }
 const sessionDevice = crypto.randomUUID();
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(`/api${path}`, {
+  const options: RequestInit = {
     ...init,
     headers: {
       ...(init.body && !(init.body instanceof FormData)
@@ -31,7 +32,24 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
       'X-Station-Id': stationId(),
       ...init.headers,
     },
-  });
+  };
+  let response: Response;
+  try {
+    response = await fetch(`/api${path}`, options);
+  } catch (error) {
+    if (init.signal?.aborted) throw error;
+    reportConnectionFailure();
+    await waitForConnection(init.signal ?? undefined);
+    // A failed write may already have reached the server: let the caller decide how to retry.
+    if (init.method && !['GET', 'HEAD'].includes(init.method.toUpperCase())) throw error;
+    response = await fetch(`/api${path}`, options);
+  }
+  if (response.status >= 500 && response.status <= 599) {
+    reportConnectionFailure();
+    await waitForConnection(init.signal ?? undefined);
+    if (!init.method || ['GET', 'HEAD'].includes(init.method.toUpperCase()))
+      response = await fetch(`/api${path}`, options);
+  }
   if (!response.ok) {
     let message = 'Connection failed. Please retry.';
     try {
@@ -69,7 +87,12 @@ export function upload(
     request.upload.onprogress = (e) => {
       if (e.lengthComputable) onProgress(Math.min(99, Math.round((e.loaded / e.total) * 100)));
     };
-    request.onerror = () => reject(new Error('Upload interrupted. Keep this page open and retry.'));
+    request.onerror = () => {
+      reportConnectionFailure();
+      void waitForConnection().then(() =>
+        reject(new Error('Upload interrupted. Keep this page open and retry.')),
+      );
+    };
     request.ontimeout = () => reject(new Error('Upload timed out. Retry this photo.'));
     request.onload = () => {
       let value;

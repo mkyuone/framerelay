@@ -33,3 +33,11 @@ if (location.pathname === '/_render') {
       </MantineProvider>
     </React.StrictMode>,
   );
+
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    void navigator.serviceWorker.register('/sw.js').catch(() => {
+      // The app still works in a normal browser when offline support cannot be installed.
+    });
+  });
+}

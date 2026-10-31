@@ -1,3 +1,4 @@
+import { LoadedImage } from '../components/LoadedImage';
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Aperture, Download as DownloadIcon, ImageOff } from 'lucide-react';
@@ -16,15 +17,22 @@ export default function Download() {
     [error, setError] = useState('');
   useEffect(() => {
     let active = true;
-    void api<Delivery>(`/delivery/${token}`)
-      .then((result) => {
-        if (active) setDelivery(result);
-      })
-      .catch((e) => {
-        if (active) setError(e.message);
-      });
+    const load = () =>
+      void api<Delivery>(`/delivery/${token}`)
+        .then((result) => {
+          if (active) {
+            setDelivery(result);
+            setError('');
+          }
+        })
+        .catch((e) => {
+          if (active) setError(e.message);
+        });
+    load();
+    window.addEventListener('framerelay:reconnected', load);
     return () => {
       active = false;
+      window.removeEventListener('framerelay:reconnected', load);
     };
   }, [token]);
   if (error)
@@ -64,7 +72,7 @@ export default function Download() {
         <div className={`download-gallery ${photos.length === 1 ? 'single' : ''}`}>
           {photos.map((photo) => (
             <article key={photo.id}>
-              <img
+              <LoadedImage
                 src={`/api/delivery/${token}/${photo.id}`}
                 alt={`Your final image ${photo.number}`}
               />

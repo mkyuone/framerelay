@@ -1,3 +1,4 @@
+import { LoadedImage } from '../components/LoadedImage';
 import { useEffect, useState } from 'react';
 import { Check, Download, Printer, RotateCcw, Search } from 'lucide-react';
 import { Modal } from '@mantine/core';
@@ -148,7 +149,10 @@ export default function Printing() {
                 <div className="print-files">
                   {finals(selected).map((photo) => (
                     <article className="print-file" key={photo.id}>
-                      <img src={photoUrl(photo.id, 'final')} alt={`Final image ${photo.number}`} />
+                      <LoadedImage
+                        src={photoUrl(photo.id, 'final')}
+                        alt={`Final image ${photo.number}`}
+                      />
                       <div className="print-file-body">
                         <strong>Image {String(photo.number).padStart(2, '0')}</strong>
                         <span className="filename">{photo.finalFilename}</span>

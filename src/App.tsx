@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
-import { LoaderCircle } from 'lucide-react';
+import { Aperture, LoaderCircle } from 'lucide-react';
 import { stations, type Station } from '../shared/types';
 import { StationProvider, useApp } from './context';
 import { Empty } from './components/Ui';
@@ -20,15 +20,21 @@ const views = {
 };
 function Loading() {
   return (
-    <div className="loading-page">
-      <LoaderCircle size={28} className="spin" />
-      <span>Opening FrameRelay…</span>
+    <div className="loading-page" role="status" aria-label="Opening FrameRelay">
+      <div className="connection-overlay-content">
+        <Aperture size={42} aria-hidden="true" />
+        <h1>Opening FrameRelay</h1>
+        <p>Getting everything ready for you.</p>
+        <span className="connection-retrying">
+          <LoaderCircle size={18} className="spin" /> Loading…
+        </span>
+      </div>
     </div>
   );
 }
 function StationRoute({ station }: { station: Station }) {
-  const { bootstrap, error } = useApp();
-  if (error)
+  const { bootstrap, error, connection } = useApp();
+  if (error && !bootstrap && connection === 'connected')
     return (
       <Empty icon={<LoaderCircle size={30} />} title="Cannot reach FrameRelay">
         <p>{error}</p>

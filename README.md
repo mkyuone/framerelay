@@ -24,6 +24,10 @@ On macOS/Linux, use `PLAYWRIGHT_BROWSERS_PATH=./node_modules/.cache/ms-playwrigh
 
 Development binds to localhost. Other devices require an HTTPS deployment: camera access and Chrome directory selection depend on a secure context. Keep the photography tab visible and the Mac awake while watching a folder.
 
+## Install as an app
+
+On HTTPS, use your browser’s install command (or **Share → Add to Home Screen** on iPhone/iPad) to open FrameRelay like an app. The app shell can open while offline and shows the connection screen until the server is reachable. Customer records, photo responses and API data are never stored in the service worker cache; active stations still need a connection to work.
+
 ## Stations
 
 Every staff station has a persistent header, a viewport-sized workspace, and a one-line footer (custom text, local clock with seconds, server connectivity, current status, local settings). Customer stations show the current ticket and Back/Next/Finish actions in the header. The Print Station shows its station name without a customer ticket or Finish customer action.
@@ -63,6 +67,8 @@ Inter is bundled and served locally through Fontsource, including the photo edit
 ## Storage and recovery
 
 `DATA_DIR` (default `./data`) contains SQLite, originals, previews, thumbnails, edited finals and branding images. Keep this directory private and persistent. Images are served through authorized APIs, never through a public static-files directory. Customer identification QR tokens cannot download originals or finals; delivery tokens expose only that customer's chosen finals.
+
+The app keeps the current screen in place during short connection interruptions. If the server is unreachable for five seconds, a full-screen reconnecting message covers it until service returns. Read requests can resume after reconnection; an interrupted write is not automatically replayed because the server may already have received it. Images show a loading indicator until the full image has loaded and decoded.
 
 Ticket creation and submission are idempotent. Original uploads deduplicate by content within the ticket. Interrupted browser uploads are retained in IndexedDB when available and can be retried. Selection uses a renewable 90-second station claim; a crashed station releases its claim through expiry. Draft edit recipes are saved locally and on the server.
 

@@ -229,11 +229,11 @@ input[type='checkbox'] {
 }
 .loading-page {
   min-height: 100dvh;
-  display: flex;
-  gap: 14px;
-  align-items: center;
-  justify-content: center;
-  color: var(--muted);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: #080f1b;
+  color: #daeafa;
 }
 .station-shell {
   position: fixed;
@@ -2483,4 +2483,93 @@ input[type='checkbox'] {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+.connection-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: #080f1b;
+  color: #daeafa;
+}
+.connection-overlay-content {
+  display: flex;
+  max-width: 480px;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  text-align: center;
+}
+.connection-overlay-content > svg {
+  color: #86a5c9;
+}
+.connection-overlay-content h1 {
+  font-size: 28px;
+}
+.connection-overlay-content p {
+  color: #aabed7;
+  font-size: 16px;
+  line-height: 1.5;
+}
+.connection-retrying {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #aabed7;
+}
+.asset-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #86a5c9;
+  pointer-events: none;
+}
+.review-card,
+.print-file,
+.download-gallery article,
+.qr-block {
+  position: relative;
+}
+.print-file .asset-loading {
+  inset: 14px auto auto 14px;
+  width: 170px;
+  height: 120px;
+}
+.large-thumbnails .print-file .asset-loading {
+  width: 220px;
+  height: 150px;
+}
+.download-gallery .asset-loading {
+  bottom: auto;
+  height: 260px;
+}
+.qr-block .asset-loading {
+  color: #485c73;
+}
+.editor-asset-status {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #aabed7;
+}
+.review-card:has([aria-label='Loading image']),
+.review-card:has([aria-label='Image unavailable']) {
+  aspect-ratio: var(--photo-ratio);
+}
+.download-gallery.single article:has([aria-label='Loading image']) > img {
+  min-height: 260px;
+}
+
+.admin-access-heading {
+  margin: 32px 0 14px;
+}
+.admin-access-heading p {
+  color: #aabed7;
+  margin-top: 6px;
 }

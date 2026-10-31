@@ -1,3 +1,4 @@
+import { LoadedImage } from './LoadedImage';
 import { useEffect, useId, useRef, useState } from 'react';
 import { ScanLine, X, ZoomIn, ZoomOut } from 'lucide-react';
 import type { Photo } from '../../shared/types';
@@ -28,7 +29,7 @@ export function PhotoInspector({
   const stage = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 1, height: 1 });
   const [view, setView] = useState<View>(fitView);
-  const [originalLoaded, setOriginalLoaded] = useState(false);
+  const [loadedSource, setLoadedSource] = useState('');
   const [originalError, setOriginalError] = useState(false);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const current = useRef({ view, size });
@@ -105,6 +106,11 @@ export function PhotoInspector({
     });
   }
   const fullSource = photoUrl(photo.id, final ? 'final' : 'original');
+  const originalLoaded = loadedSource === fullSource;
+  useEffect(() => {
+    setLoadedSource('');
+    setOriginalError(false);
+  }, [fullSource, zoomed]);
   return (
     <>
       <div className="preview-toolbar inspector-toolbar">
@@ -258,8 +264,11 @@ export function PhotoInspector({
                 alt=""
                 aria-hidden="true"
                 draggable={false}
-                onLoad={() => {
-                  setOriginalLoaded(true);
+                onLoad={(event) => {
+                  void event.currentTarget
+                    .decode()
+                    .then(() => setLoadedSource(fullSource))
+                    .catch(() => setOriginalError(true));
                   setOriginalError(false);
                 }}
                 onError={() => setOriginalError(true)}
@@ -285,7 +294,11 @@ export function PhotoInspector({
               if (event.currentTarget.hasPointerCapture(event.pointerId)) navigate(event);
             }}
           >
-            <img src={photoUrl(photo.id, final ? 'final' : 'thumbnail')} alt="" draggable={false} />
+            <LoadedImage
+              src={photoUrl(photo.id, final ? 'final' : 'thumbnail')}
+              alt=""
+              draggable={false}
+            />
             <div
               className="navigator-viewport"
               style={{

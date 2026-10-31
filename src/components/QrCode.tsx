@@ -1,3 +1,4 @@
+import { LoadedImage } from './LoadedImage';
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 
@@ -28,7 +29,7 @@ export function QrCode({
   }, [value]);
   return (
     <div className={`qr-block ${size}`} aria-busy={!src}>
-      {src ? <img src={src} alt={label} /> : <span>Preparing QR…</span>}
+      {src ? <LoadedImage src={src} alt={label} /> : <span>Preparing QR…</span>}
     </div>
   );
 }

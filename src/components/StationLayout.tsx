@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { stationNames, stations, type Station, type Ticket } from '../../shared/types';
 import { useApp, useStation } from '../context';
-import { api, post } from '../lib/api';
+import { post } from '../lib/api';
 import { Button } from './Ui';
 
 const stationIcons = {
@@ -60,26 +60,12 @@ function StationTitle({ station }: { station: Station }) {
 }
 function Footer({ status, onSettings }: { status?: string; onSettings: () => void }) {
   const { event, prefs } = useStation();
-  const [now, setNow] = useState(() => new Date()),
-    [connected, setConnected] = useState<boolean | null>(null);
+  const [now, setNow] = useState(() => new Date());
+  const { connection } = useApp();
+  const connected = connection === 'connected' ? true : connection === 'offline' ? false : null;
   useEffect(() => {
-    let alive = true;
-    const check = () =>
-      api('/health', { signal: AbortSignal.timeout(4000) })
-        .then(() => {
-          if (alive) setConnected(true);
-        })
-        .catch(() => {
-          if (alive) setConnected(false);
-        });
-    void check();
-    const network = setInterval(() => void check(), 5000),
-      clock = setInterval(() => setNow(new Date()), 1000);
-    return () => {
-      alive = false;
-      clearInterval(network);
-      clearInterval(clock);
-    };
+    const clock = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(clock);
   }, []);
   const pad = (n: number) => String(n).padStart(2, '0');
   const timestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;

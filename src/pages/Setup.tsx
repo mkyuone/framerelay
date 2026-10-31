@@ -237,6 +237,10 @@ function SetupContent() {
             </div>
           </form>
         </>
+        <div className="admin-access-heading">
+          <h2>Admin access</h2>
+          <p>Manage the passcode used to open setup.</p>
+        </div>
         <details className="setup-options">
           <summary>Change operator passcode</summary>
           <form

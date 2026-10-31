@@ -1,3 +1,4 @@
+import { LoadedImage } from './LoadedImage';
 import { useEffect, useRef, useState } from 'react';
 import { Modal } from '@mantine/core';
 import {
@@ -49,7 +50,11 @@ function UploadCard({
     >
       <div className="photo-preview upload-preview">
         {source && !invalid ? (
-          <img src={source} alt={`Uploading ${item.file.name}`} onError={() => setInvalid(true)} />
+          <LoadedImage
+            src={source}
+            alt={`Uploading ${item.file.name}`}
+            onError={() => setInvalid(true)}
+          />
         ) : (
           <ImageOff size={28} aria-label="Preview unavailable" />
         )}

@@ -9,15 +9,21 @@ import {
 } from '../shared/types';
 import { api } from './lib/api';
 import { readLocal } from './lib/hooks';
+import { startConnectionMonitor, subscribeConnection } from './lib/connection';
+import { WifiOff, LoaderCircle } from 'lucide-react';
 
 const AppContext = createContext<{
   bootstrap: Bootstrap | null;
   error: string;
   refresh: () => Promise<void>;
-}>({ bootstrap: null, error: '', refresh: async () => {} });
+  connection: 'checking' | 'connected' | 'waiting' | 'offline';
+}>({ bootstrap: null, error: '', refresh: async () => {}, connection: 'checking' });
 export function AppProvider({ children }: { children: ReactNode }) {
   const [bootstrap, setBootstrap] = useState<Bootstrap | null>(null),
-    [error, setError] = useState('');
+    [error, setError] = useState(''),
+    [connection, setConnection] = useState<'checking' | 'connected' | 'waiting' | 'offline'>(
+      'checking',
+    );
   const refresh = useCallback(async () => {
     try {
       setBootstrap(await api<Bootstrap>('/bootstrap'));
@@ -27,17 +33,71 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
   useEffect(() => {
+    const unsubscribe = subscribeConnection(setConnection);
+    const stop = startConnectionMonitor();
+    return () => {
+      unsubscribe();
+      stop();
+    };
+  }, []);
+  useEffect(() => {
     void refresh();
     const renew = () => void refresh();
     window.addEventListener('framerelay:authorization', renew);
+    window.addEventListener('framerelay:reconnected', renew);
     const timer = window.setInterval(renew, 10000);
     return () => {
       window.removeEventListener('framerelay:authorization', renew);
+      window.removeEventListener('framerelay:reconnected', renew);
       window.clearInterval(timer);
     };
   }, [refresh]);
+  useEffect(() => {
+    if (connection !== 'offline') return;
+    const otherSurfaces = Array.from(document.body.children).filter(
+      (element) => element.id !== 'root' && element instanceof HTMLElement,
+    ) as HTMLElement[];
+    const previous = otherSurfaces.map((element) => element.inert);
+    otherSurfaces.forEach((element) => {
+      element.inert = true;
+    });
+    document.querySelector<HTMLElement>('.connection-overlay')?.focus();
+    return () =>
+      otherSurfaces.forEach((element, index) => {
+        element.inert = previous[index];
+      });
+  }, [connection]);
   return (
-    <AppContext.Provider value={{ bootstrap, error, refresh }}>{children}</AppContext.Provider>
+    <AppContext.Provider value={{ bootstrap, error, refresh, connection }}>
+      <div
+        inert={connection === 'offline' ? true : undefined}
+        aria-hidden={connection === 'offline' ? true : undefined}
+      >
+        {children}
+      </div>
+      {connection === 'offline' ? (
+        <div
+          className="connection-overlay"
+          tabIndex={-1}
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="connection-title"
+          aria-describedby="connection-description"
+        >
+          <div className="connection-overlay-content">
+            <WifiOff size={42} aria-hidden="true" />
+            <h1 id="connection-title">Connection lost</h1>
+            <p id="connection-description">
+              FrameRelay can't reach the server. Your current screen will return when the connection
+              is restored.
+            </p>
+            <span className="connection-retrying">
+              <LoaderCircle size={18} className="spin" /> Reconnecting…
+            </span>
+          </div>
+        </div>
+      ) : null}
+    </AppContext.Provider>
   );
 }
 export const useApp = () => useContext(AppContext);

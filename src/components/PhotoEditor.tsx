@@ -5,6 +5,7 @@ import {
   useLayoutEffect,
   useMemo,
   useRef,
+  useState,
 } from 'react';
 import {
   ImageEditor,
@@ -18,6 +19,8 @@ import type { EventConfig, Photo, Ticket } from '../../shared/types';
 import { patch, photoUrl, post, upload } from '../lib/api';
 import { readLocal } from '../lib/hooks';
 import { constrainCrop } from '../../shared/crop';
+import { ImageOff, LoaderCircle } from 'lucide-react';
+import { reportConnectionFailure } from '../lib/connection';
 
 const tools: readonly ToolInput[] = ['adjust', 'finetune', 'filter', 'sticker'];
 
@@ -41,6 +44,57 @@ export default forwardRef<
     latest = useRef<EditState | null>(null),
     changed = useRef(false);
   const draftKey = `framerelay.edit.${event.id}.${photo.id}`;
+  const [asset, setAsset] = useState<{ source: string; url: string } | null>(null);
+  const [assetError, setAssetError] = useState(false);
+  const original = photoUrl(photo.id, 'original');
+  useEffect(() => {
+    let disposed = false;
+    let url = '';
+    let controller: AbortController | undefined;
+    async function load() {
+      controller?.abort();
+      const current = new AbortController();
+      controller = current;
+      setAssetError(false);
+      try {
+        const response = await fetch(original, { signal: current.signal });
+        if (!response.ok) throw new Error('Unable to load the photo.');
+        const blob = await response.blob();
+        const next = URL.createObjectURL(blob);
+        const image = new Image();
+        image.src = next;
+        try {
+          await image.decode();
+        } catch (error) {
+          URL.revokeObjectURL(next);
+          throw error;
+        }
+        if (disposed || current.signal.aborted) {
+          URL.revokeObjectURL(next);
+          return;
+        }
+        if (url) URL.revokeObjectURL(url);
+        url = next;
+        setAsset({ source: original, url });
+      } catch (error) {
+        if (!disposed && !current.signal.aborted) {
+          if (error instanceof TypeError) reportConnectionFailure();
+          else setAssetError(true);
+        }
+      }
+    }
+    void load();
+    const retry = () => {
+      if (!url) void load();
+    };
+    window.addEventListener('framerelay:reconnected', retry);
+    return () => {
+      disposed = true;
+      controller?.abort();
+      if (url) URL.revokeObjectURL(url);
+      window.removeEventListener('framerelay:reconnected', retry);
+    };
+  }, [original]);
   useLayoutEffect(() => {
     const root = host.current;
     if (!root) return;
@@ -165,44 +219,58 @@ export default forwardRef<
         choices[next]?.focus();
       }}
     >
-      <ImageEditor
-        ref={editor}
-        src={photoUrl(photo.id, 'original')}
-        initialState={initial}
-        tools={tools}
-        theme="dark"
-        stickerLibrary={false}
-        persistLooks={false}
-        themeOverrides={{ accent: event.accentColor, accentText: '#a9d1ff' }}
-        onError={(error) => onError(error.message)}
-        onChange={(state) => {
-          const constrained = constrainCrop(state, photo.width, photo.height);
-          if (constrained !== state) {
-            editor.current?.store.setState({ edit: constrained });
-            return;
-          }
-          latest.current = state;
-          changed.current = true;
-          try {
-            localStorage.setItem(draftKey, JSON.stringify(state));
-          } catch {}
-          if (timer.current) clearTimeout(timer.current);
-          timer.current = setTimeout(() => {
-            const value = latest.current;
-            pending.current = pending.current
-              .catch(() => {})
-              .then(() => patch(`/photos/${photo.id}`, { recipe: value }))
-              .then(() => {
-                if (latest.current === value) changed.current = false;
-              })
-              .catch((error) => {
-                onError(`Edits are saved in this browser. Server save failed: ${error.message}`);
-                throw error;
-              });
-            void pending.current.catch(() => {});
-          }, 650);
-        }}
-      />
+      {asset?.source === original ? (
+        <ImageEditor
+          ref={editor}
+          src={asset.url}
+          initialState={initial}
+          tools={tools}
+          theme="dark"
+          stickerLibrary={false}
+          persistLooks={false}
+          themeOverrides={{ accent: event.accentColor, accentText: '#a9d1ff' }}
+          onError={(error) => onError(error.message)}
+          onChange={(state) => {
+            const constrained = constrainCrop(state, photo.width, photo.height);
+            if (constrained !== state) {
+              editor.current?.store.setState({ edit: constrained });
+              return;
+            }
+            latest.current = state;
+            changed.current = true;
+            try {
+              localStorage.setItem(draftKey, JSON.stringify(state));
+            } catch {}
+            if (timer.current) clearTimeout(timer.current);
+            timer.current = setTimeout(() => {
+              const value = latest.current;
+              pending.current = pending.current
+                .catch(() => {})
+                .then(() => patch(`/photos/${photo.id}`, { recipe: value }))
+                .then(() => {
+                  if (latest.current === value) changed.current = false;
+                })
+                .catch((error) => {
+                  onError(`Edits are saved in this browser. Server save failed: ${error.message}`);
+                  throw error;
+                });
+              void pending.current.catch(() => {});
+            }, 650);
+          }}
+        />
+      ) : (
+        <div className="editor-asset-status" role="status">
+          {assetError ? (
+            <>
+              <ImageOff size={28} /> Unable to load the photo.
+            </>
+          ) : (
+            <>
+              <LoaderCircle size={28} className="spin" /> Loading photo…
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 });

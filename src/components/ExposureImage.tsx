@@ -1,4 +1,5 @@
 import { memo, useEffect, useRef, useState } from 'react';
+import { LoadedImage } from './LoadedImage';
 
 /** A display-only JPEG highlight warning; never changes the stored photograph. */
 export const ExposureImage = memo(function ExposureImage({
@@ -39,15 +40,22 @@ export const ExposureImage = memo(function ExposureImage({
   }, [zebra, src, loaded]);
   return (
     <>
-      <img
+      <LoadedImage
         ref={image}
         src={src}
         alt={alt}
         loading={loading}
         draggable={false}
-        onLoad={() => setLoaded(src)}
+        onReady={() => setLoaded(src)}
       />
-      {zebra ? <canvas ref={canvas} className="zebra-overlay" aria-hidden="true" /> : null}
+      {zebra ? (
+        <canvas
+          ref={canvas}
+          className="zebra-overlay"
+          aria-hidden="true"
+          style={{ visibility: loaded === src ? 'visible' : 'hidden' }}
+        />
+      ) : null}
     </>
   );
 });

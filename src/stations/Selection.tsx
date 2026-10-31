@@ -1,3 +1,4 @@
+import { LoadedImage } from '../components/LoadedImage';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Modal } from '@mantine/core';
 import { Check, CheckCircle2, Columns2, Images, LoaderCircle, Printer, X } from 'lucide-react';
@@ -392,7 +393,7 @@ export default function Selection() {
                   } as React.CSSProperties
                 }
               >
-                <img
+                <LoadedImage
                   src={photoUrl(photo.id, photo.renderStatus === 'ready' ? 'final' : 'preview')}
                   alt={`Final image ${photo.number}`}
                 />
