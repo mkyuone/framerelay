@@ -1,57 +1,54 @@
 # FrameRelay
 
-A single-server photobooth workflow: registration → photography → selection/editing → manual printing and private digital delivery. One deployment serves a single shared workflow with editable settings.
+FrameRelay is a self-hosted photobooth workflow for registration, photography, photo selection and editing, printing, and private digital delivery. One deployment serves one shared workflow, with settings managed by an operator.
 
-## Local development
+## How it works
 
-Requires Node.js 24+ and npm.
+1. **Registration** creates a ticket and identification QR code for each customer.
+2. **Photography** looks up the ticket, uploads JPEGs, and can watch a supported browser-selected export folder.
+3. **Select & Edit** lets staff review captures, choose finals, and edit them with Image Ultra. Customers can receive a private download QR code.
+4. **Printing** groups submitted finals by ticket. Staff download each image and print it using their existing print system, then mark it printed.
 
-```powershell
-npm install
+Each station can run on a separate device. Use **Station settings** to switch roles or adjust browser-local preferences. FrameRelay does not collect payments or send email.
+
+## Run locally
+
+Requirements: Node.js 24 or later and npm.
+
+```sh
+npm ci
 npm run dev
 ```
 
-Open [FrameRelay](http://127.0.0.1:5173). The first run creates a gitignored `.env` with local settings and prints a randomly generated initial operator passcode once in the terminal. Save it, then visit **Setup**, unlock it with that passcode, and set the shared staff passcode. The event name is optional; no organization or photobooth details are collected. There are no default credentials or seeded events.
+Open [http://127.0.0.1:5173](http://127.0.0.1:5173). On a fresh installation, the terminal prints a randomly generated operator passcode once; save it. Open **Setup**, unlock it with that passcode, choose a staff passcode and save the settings. The first run also creates a local, gitignored `.env` with development settings.
 
-For full-resolution server export, install Chromium using the same cache location as `.env`:
+The development server listens on localhost. Use an HTTPS deployment for other devices: camera access and browser folder selection require a secure context. Folder watching depends on browser support and permission; manual JPEG upload is also available.
 
-```powershell
-$env:PLAYWRIGHT_BROWSERS_PATH = './node_modules/.cache/ms-playwright'
-npx playwright install chromium
+The photo editor normally exports in the browser. For the full-resolution server fallback, install Chromium at the configured browser path:
+
+```sh
+PLAYWRIGHT_BROWSERS_PATH=./node_modules/.cache/ms-playwright npx playwright install chromium
 ```
 
-On macOS/Linux, use `PLAYWRIGHT_BROWSERS_PATH=./node_modules/.cache/ms-playwright npx playwright install chromium`.
+On PowerShell, set `$env:PLAYWRIGHT_BROWSERS_PATH = './node_modules/.cache/ms-playwright'` before running `npx playwright install chromium`.
 
-Development binds to localhost. Other devices require an HTTPS deployment: camera access and Chrome directory selection depend on a secure context. Keep the photography tab visible and the Mac awake while watching a folder.
+## Install on a device
 
-## Install as an app
+Over HTTPS, use the browser's install option, or **Share → Add to Home Screen** on iPhone or iPad. Each device remembers its last station role and opens it on the next app launch; a new device starts at Registration.
 
-On HTTPS, use your browser’s install command (or **Share → Add to Home Screen** on iPhone/iPad) to open FrameRelay like an app. Each device remembers its last station role and opens it on the next app launch; a new device starts at Registration. The app shell can open while offline and shows the connection screen until the server is reachable. Customer records, photo responses and API data are never stored in the service worker cache; active stations still need a connection to work.
+The installed app can load its shell offline and displays a reconnecting screen when the server is unavailable. Station operations require the server. The service worker does not cache API responses, customer records, or photo responses.
 
-## Stations
+## Operator settings and reset
 
-Every staff station has a persistent header, a viewport-sized workspace, and a one-line footer (custom text, local clock with seconds, server connectivity, current status, local settings). Customer stations show the current ticket and Back/Next/Finish actions in the header. The Print Station shows its station name without a customer ticket or Finish customer action.
+In **Setup**, an operator can change the optional display name, staff passcode, delivery options, print dimensions and copies, colors, and default footer text. At least one delivery method must be enabled. Changing the staff passcode signs staff out. Under **Admin access**, an operator can change the operator passcode after providing the current one; this signs out all operator sessions. Operator passcodes are stored as salted scrypt hashes.
 
-Switch station roles using **Station settings** in the bottom-right corner. The header station name is a label.
+When a session is finished, **Clear all data** permanently deletes server-side tickets, photos, print queues, and customer download links, including records from older versions. Confirm by typing `CLEAR`. Settings and the staff passcode remain; staff must sign in again. Finish uploads and exports and back up anything needed first. The action does not erase separate backups or browser-local drafts and uploads on other devices.
 
-- **Registration** generates tickets after payment is collected separately. Next customer creates the next QR; the previous QR can be redisplayed.
-- **Photography** scans or looks up a ticket, accepts JPEG uploads, and optionally polls a Chrome-selected export folder. Uploading photos appear immediately as 3:2 cropped previews, with progress/retry directly below each image. Finish exporting before Finish customer; the station checks the folder and drains uploads before switching.
-- **Select & Edit** uses a scrolling image grid, modal preview, two-image comparison and a full-workspace Image Ultra editor with native Adjust, Finetune, Filter and Sticker tabs. Crops are restricted to 3:2 or 2:3. Finals are reviewed before publishing. The handoff prioritizes collecting prints later, with an optional smaller digital download QR; it announces prints ready only after they are marked printed.
-- **Printing** groups jobs by ticket. Download JPEG, submit to PaperCut, release printing, then Mark printed. Downloading alone never completes a print. Undo and reprint are explicit.
+Existing active event settings remain usable after upgrading from an older release. Historical downloads remain available until data is cleared, subject to their existing download settings.
 
-Image filenames follow `T0001_01_20261031T062608123Z.jpg`: globally unique ticket, stable source image number within the ticket, UTC upload/version timestamp. Original camera names remain metadata. Exclusions never renumber images or delete originals.
+### Reset a forgotten operator passcode
 
-Grid thumbnails fill a 3:2 frame without letterboxing; this display crop never changes the original image. Full-image inspection supports scroll/pinch zoom, panning and a thumbnail navigator. Photography offers highlight zebras, enabled by default, without changing the image. Photography and Select & Edit show every capture in one scrolling images area while their controls, header and footer stay fixed. Excluded selection photos stay in place, darkened with one diagonal strike-through, and can be restored. Long queues, settings and unusually tall content use contained scrolling. Local settings are scoped by the current workflow, station and browser; their footer override does not change the event default.
-
-## Setup and clearing data
-
-The operator can set an optional display name, staff passcode, delivery settings, colors and default footer text. Settings can be changed at any time and apply to the current workflow. Changing the staff passcode signs staff out. Under **Change operator passcode**, an operator can change the setup passcode after entering the current one; all operator sessions are signed out. Operator passcodes are stored as salted scrypt hashes.
-
-When work is complete, an operator can choose **Clear all data** in Setup and type `CLEAR` to confirm. This deletes all server-side tickets, photos, print queues and download links, including historical records from previous versions. Settings and the staff passcode are retained; staff must sign in again. Wait for uploads and exports to finish, and back up anything needed before clearing. Browser-local drafts or uploads on other devices and separate backups are not erased by the server reset.
-
-Existing active event settings continue to work after upgrading. Historical downloads remain available until data is cleared; they keep their historical settings. If no event was active, set up the stations before use.
-
-To reset a forgotten operator passcode on a server with direct shell access, use the application account and its existing data directory. The following example is for the systemd deployment at `/opt/framerelay/current` and `/var/lib/framerelay`:
+On a server with shell access, run the recovery script as the application user, using its data directory. For example, with the systemd layout `/opt/framerelay/current` and `/var/lib/framerelay`:
 
 ```bash
 cd /opt/framerelay/current
@@ -60,31 +57,21 @@ printf '%s' "$FRAMERELAY_NEW_PASSCODE" | sudo -u framerelay env DATA_DIR=/var/li
 unset FRAMERELAY_NEW_PASSCODE
 ```
 
-The recovery command reads from standard input, stores only a new hash and signs out existing operator sessions. It does not delete customer data or require a restart. For Docker, use `docker compose exec -T app node --import tsx scripts/reset-operator.ts` as the receiving command instead. If a legacy deployment still has `SETUP_PASSCODE` in its environment file, remove it after the first successful start with this version; it is only an initial bootstrap value and will not reset an existing account.
+For the Compose deployment below, use `docker compose exec -T app node --import tsx scripts/reset-operator.ts` as the receiving command instead. The script reads from standard input, updates the hash and signs out operator sessions. It does not delete customer data or require a restart.
 
-Inter is bundled and served locally through Fontsource, including the photo editor. The editor, QR scanner and all application assets run locally; no CDN, analytics, email, external storage or payment integration is required.
+`SETUP_PASSCODE` is a bootstrap value used only when no operator hash exists. For an existing installation, changing that environment variable does not reset the passcode. Remove any legacy plaintext `SETUP_PASSCODE` from the environment file after a successful migration.
 
-## Storage and recovery
+## Deploy with Docker Compose
 
-`DATA_DIR` (default `./data`) contains SQLite, originals, previews, thumbnails, edited finals and branding images. Keep this directory private and persistent. Images are served through authorized APIs, never through a public static-files directory. Customer identification QR tokens cannot download originals or finals; delivery tokens expose only that customer's chosen finals.
-
-The app keeps the current screen in place during short connection interruptions. If the server is unreachable for five seconds, a full-screen reconnecting message covers it until service returns. Read requests can resume after reconnection; an interrupted write is not automatically replayed because the server may already have received it. Images show a loading indicator until the full image has loaded and decoded.
-
-Ticket creation and submission are idempotent. Original uploads deduplicate by content within the ticket. Interrupted browser uploads are retained in IndexedDB when available and can be retried. Selection uses a renewable 90-second station claim; a crashed station releases its claim through expiry. Draft edit recipes are saved locally and on the server.
-
-Image Ultra performs editing/export in the browser. If it reports downscaling or export fails, the same renderer runs in server-side Chromium, one export at a time. SQLite retains pending jobs across restarts. Full-resolution output is required: the server never accepts a downscaled fallback as a successful server export. Original JPEGs remain unchanged; final exports omit EXIF/GPS metadata.
-
-Folder polling cannot identify which customer owns an export that appears late. Staff must finish exports before switching customers. A new customer establishes a baseline and detects subsequent additions. Manual uploads remain available when folder permission expires or the browser does not support the API.
-
-## VPS deployment
-
-Install Docker/Compose on a Linux VPS, point a hostname to it, and open ports 80/443. Set these values in the deployment `.env`:
+Install Docker and Compose on a Linux server, point a hostname at it, and make ports 80 and 443 reachable. Set the hostname in the deployment `.env`:
 
 ```dotenv
 DOMAIN=photos.example.org
 ```
 
-```sh
+For a fresh data volume, choose an initial operator passcode in a Bash shell and start the stack:
+
+```bash
 read -rs -p 'Initial operator passcode (12–128 characters): ' FRAMERELAY_INITIAL_PASSCODE; echo
 export SETUP_PASSCODE="$FRAMERELAY_INITIAL_PASSCODE"
 docker compose up -d --build
@@ -92,28 +79,37 @@ unset SETUP_PASSCODE FRAMERELAY_INITIAL_PASSCODE
 docker compose up -d
 ```
 
-Caddy provides HTTPS. The application uses secure, HTTP-only cookies in production. Only Caddy exposes public ports; the application and SQLite remain behind it. Chromium and its Linux dependencies are installed by the Dockerfile.
+The second `up` recreates the app without retaining the bootstrap passcode in its container environment. Save the passcode securely; the server stores only its hash. Caddy provides HTTPS, and only Caddy exposes public ports. The app, SQLite database, and images use the persistent `photos` volume. The Docker image installs Chromium and its system dependencies for server-side exports.
 
-For a manual production start, set `NODE_ENV=production`, `PUBLIC_ORIGIN=https://your-hostname`, `HOST`, `PORT`, an initial `SETUP_PASSCODE` on first start, `DATA_DIR` and a writable `PLAYWRIGHT_BROWSERS_PATH`, run `npm run build`, and use `npm start` behind an HTTPS reverse proxy.
+For a manual deployment, build with `npm run build` and run `npm start` behind an HTTPS reverse proxy. Configure `NODE_ENV=production`, `PUBLIC_ORIGIN`, `HOST`, `PORT`, `DATA_DIR`, and a writable `PLAYWRIGHT_BROWSERS_PATH`. Supply `SETUP_PASSCODE` only for the first start of a fresh database, then remove it from the service environment.
 
-Keep one application instance against the SQLite volume. Size storage from expected JPEG sizes × captures/customer × customers, allowing room for previews, finals and backups. Validate memory usage with actual camera files before the event.
+Run one application instance against each SQLite volume. Size persistent storage for original captures, previews, final images, and backups. Test memory use with real camera files before an event.
 
-## Backup and shutdown
+## Data, recovery, and operational notes
 
-Stop ingestion/editing, briefly stop the app, then copy the **entire data directory/volume**, including SQLite and every image directory, to a protected backup. Restart the app after the copy. Restore the full directory into the same layout while the app is stopped; the database and files belong together. Test a restored copy before event day.
+`DATA_DIR` (default `./data`) contains SQLite, originals, previews, thumbnails, edited finals, and other assets. Keep it private and persistent. Customer identification QR tokens cannot download photos; delivery tokens expose only that customer's selected finals.
 
-Do not decommission hosting while downloads are promised. Disable downloads deliberately, communicate availability externally, then stop the app and handle stored images/backups according to the organizer's retention policy. Use the in-app clear-data action when data should be deleted.
+Stop ingestion and editing, briefly stop the app, and back up the **entire data directory or volume**, including the database and all image directories. Restore the complete backup while the app is stopped and test it before use. Clearing application data does not clear your backups.
 
-## Verification
+Original uploads are deduplicated by content within a ticket. Interrupted browser uploads can be retried when retained in IndexedDB. Selection uses a renewable 90-second station claim; a claim expires if a station stops responding. Edit recipes are saved locally and on the server.
+
+Images display after loading and decoding. Short connection interruptions leave the current screen in place; after five seconds of an observed outage, a reconnecting screen covers it until service returns. Read requests can resume after reconnection. An interrupted write is not automatically replayed because the server may already have received it.
+
+Full-resolution exports run in the browser, with a server-side Chromium fallback processed one at a time. Originals are unchanged and final exports omit EXIF/GPS metadata. Finish all exports before switching customers: folder polling cannot determine which customer owns a late-arriving file.
+
+## Development and verification
 
 ```sh
 npm run build
 npm test
-npm run test:e2e
+PLAYWRIGHT_BROWSERS_PATH=./node_modules/.cache/ms-playwright npx playwright install chromium
+PLAYWRIGHT_BROWSERS_PATH=./node_modules/.cache/ms-playwright npm run test:e2e
 ```
 
-Run the build before browser tests. Playwright uses a separate temporary database/server on port 3401 and does not seed your development event. Screenshots/traces are stored outside the repository. `QA_ARTIFACT_DIR` can override the screenshot destination; `QA_PHOTO_PATH` can supply a local sample photo for visual QA.
+On PowerShell, set `$env:PLAYWRIGHT_BROWSERS_PATH = './node_modules/.cache/ms-playwright'` before the Playwright commands instead. Build before running browser tests. Playwright starts an isolated temporary database and server on port 3401. Screenshots and traces are written outside the repository; `QA_ARTIFACT_DIR` changes the screenshot directory and `QA_PHOTO_PATH` supplies a sample photo.
 
-Backend tests cover authorization, settings and reset behavior, upload deduplication, exclusions, concurrent selection claims, publication, print status, restart recovery and old-event branding. Browser tests cover all stations, local preferences, responsive layouts and five 24 MP exports including the server fallback.
+Test the real deployment with the devices, browser, cameras, export folder, Wi-Fi network, QR screens, and print process you plan to use. Chromium viewport emulation does not establish compatibility with physical iPads or Safari.
 
-Before event use, test QR scans from photographed phone screens, actual school iPads/Safari, the real Lightroom export folder, school Wi-Fi upload performance and manual PaperCut release. Chromium viewport emulation cannot establish physical-device compatibility.
+## Licensing
+
+FrameRelay is licensed under the [MIT License](LICENSE). Third-party components have their own licenses; existing notices for Inter and Image Ultra are in [`public/licenses`](public/licenses). Review and retain the applicable third-party notices, including those for bundled and native dependencies, when distributing a build or image.
