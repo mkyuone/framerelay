@@ -1,7 +1,7 @@
 :root {
   font-family: 'Inter Variable', sans-serif;
   color: #e0f2ff;
-  background: #080f1b;
+  background: var(--page-background, #101d40);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -15,6 +15,17 @@
 }
 * {
   box-sizing: border-box;
+}
+html,
+body {
+  min-height: 100%;
+  background-color: var(--page-background, #101d40);
+  overscroll-behavior-y: none;
+}
+#root {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background-color: #080f1b;
 }
 body {
   margin: 0;

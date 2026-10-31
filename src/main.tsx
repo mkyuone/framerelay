@@ -8,6 +8,9 @@ import '@fontsource-variable/inter';
 import './styles.css';
 import App from './App';
 import { AppProvider } from './context';
+import { restoreLegacyPwaLaunch } from './lib/station-role';
+
+restoreLegacyPwaLaunch();
 
 if (location.pathname === '/_render') {
   void import('./render');

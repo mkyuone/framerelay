@@ -33,6 +33,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
   useEffect(() => {
+    const color = bootstrap?.event?.primaryColor ?? '#101d40';
+    document.documentElement.style.setProperty('--page-background', color);
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', color);
+  }, [bootstrap?.event?.primaryColor]);
+  useEffect(() => {
     const unsubscribe = subscribeConnection(setConnection);
     const stop = startConnectionMonitor();
     return () => {

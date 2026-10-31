@@ -3,7 +3,7 @@
   "name": "FrameRelay",
   "short_name": "FrameRelay",
   "description": "A photo booth workflow for registration, photography, selection and delivery.",
-  "start_url": "/registration",
+  "start_url": "/?launch=pwa",
   "scope": "/",
   "display": "standalone",
   "background_color": "#080f1b",

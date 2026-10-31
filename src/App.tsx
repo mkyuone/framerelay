@@ -1,11 +1,12 @@
-import { lazy, Suspense } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { lazy, Suspense, useEffect } from 'react';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { Aperture, LoaderCircle } from 'lucide-react';
 import { stations, type Station } from '../shared/types';
 import { StationProvider, useApp } from './context';
 import { Empty } from './components/Ui';
 import Auth from './pages/Auth';
 import Registration from './stations/Registration';
+import { rememberStation, rememberedStation } from './lib/station-role';
 
 const Photography = lazy(() => import('./stations/Photography'));
 const Selection = lazy(() => import('./stations/Selection'));
@@ -34,6 +35,9 @@ function Loading() {
 }
 function StationRoute({ station }: { station: Station }) {
   const { bootstrap, error, connection } = useApp();
+  useEffect(() => {
+    rememberStation(station);
+  }, [station]);
   if (error && !bootstrap && connection === 'connected')
     return (
       <Empty icon={<LoaderCircle size={30} />} title="Cannot reach FrameRelay">
@@ -56,6 +60,11 @@ function StationRoute({ station }: { station: Station }) {
     </StationProvider>
   );
 }
+function StartRoute() {
+  const { search } = useLocation();
+  const isPwaLaunch = new URLSearchParams(search).get('launch') === 'pwa';
+  return <Navigate to={`/${isPwaLaunch ? rememberedStation() : 'registration'}`} replace />;
+}
 function TicketLink() {
   const { bootstrap } = useApp();
   return (
@@ -74,6 +83,7 @@ export default function App() {
         {stations.map((station) => (
           <Route key={station} path={`/${station}`} element={<StationRoute station={station} />} />
         ))}
+        <Route path="/" element={<StartRoute />} />
         <Route path="/settings" element={<Setup />} />
         <Route path="/d/:token" element={<Download />} />
         <Route path="/s/:token" element={<TicketLink />} />

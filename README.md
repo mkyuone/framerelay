@@ -26,7 +26,7 @@ Development binds to localhost. Other devices require an HTTPS deployment: camer
 
 ## Install as an app
 
-On HTTPS, use your browser’s install command (or **Share → Add to Home Screen** on iPhone/iPad) to open FrameRelay like an app. The app shell can open while offline and shows the connection screen until the server is reachable. Customer records, photo responses and API data are never stored in the service worker cache; active stations still need a connection to work.
+On HTTPS, use your browser’s install command (or **Share → Add to Home Screen** on iPhone/iPad) to open FrameRelay like an app. Each device remembers its last station role and opens it on the next app launch; a new device starts at Registration. The app shell can open while offline and shows the connection screen until the server is reachable. Customer records, photo responses and API data are never stored in the service worker cache; active stations still need a connection to work.
 
 ## Stations
 
