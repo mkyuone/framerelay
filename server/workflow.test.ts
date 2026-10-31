@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -55,8 +55,7 @@ beforeEach(async () => {
     {} as ReturnType<typeof headers>,
   );
   operatorCookie = `fr_operator=${login.cookies[0].value}`;
-  event = (await call('POST', '/events', settings)).json();
-  assert.equal((await call('POST', `/events/${event.id}/activate`)).statusCode, 200);
+  event = (await call('POST', '/settings', settings)).json();
   const staff = await call(
     'POST',
     '/login',
@@ -134,7 +133,7 @@ test('ticket creation is idempotent and staff cannot change operator settings', 
     second = await call('POST', '/tickets', { key });
   assert.equal(first.json().id, second.json().id);
   assert.equal(store.recentTickets(event.id).length, 1);
-  const denied = await call('GET', '/events', undefined, {
+  const denied = await call('POST', '/reset', undefined, {
     cookie: staffCookie,
     'x-station-id': device,
   });
@@ -146,40 +145,41 @@ test('ticket creation is idempotent and staff cannot change operator settings', 
   );
 });
 
-test('event names may be blank or omitted and legacy identity fields stay out of the interface', async () => {
-  const { eventName: _, ...withoutName } = settings;
-  const unnamed = await call('POST', '/events', withoutName);
-  assert.equal(unnamed.statusCode, 200, unnamed.body);
-  assert.equal(unnamed.json<EventConfig>().eventName, '');
-  const blankName = await call('POST', '/events', { ...settings, eventName: '   ' });
-  assert.equal(blankName.statusCode, 200, blankName.body);
-  assert.equal(blankName.json<EventConfig>().eventName, '');
-  store.sql.prepare('UPDATE events SET config = ? WHERE id = ?').run(
-    JSON.stringify({
-      ...store.config(event.id)!,
-      organizationName: 'Legacy organization',
-      boothName: 'Legacy booth',
-      organizationLogo: null,
-      eventLogo: null,
-      eventDate: null,
-    }),
-    event.id,
-  );
-  const visible = (await call('GET', '/bootstrap')).json().event;
-  assert.equal(visible.eventName, event.eventName);
-  for (const key of ['organizationName', 'boothName', 'organizationLogo', 'eventLogo', 'eventDate'])
-    assert.ok(!(key in visible));
-});
-test('activation locks settings and old staff authorization cannot access a later event', async () => {
+test('settings remain editable and preserve the staff passcode when omitted', async () => {
+  const changed = await call('POST', '/settings', {
+    ...settings,
+    staffPasscode: '',
+    eventName: 'Changed',
+  });
+  assert.equal(changed.statusCode, 200, changed.body);
+  assert.equal(changed.json<EventConfig>().eventName, 'Changed');
   assert.equal(
-    (await call('POST', '/events', { ...settings, id: event.id, eventName: 'Changed' })).statusCode,
-    409,
+    (
+      await call('GET', '/tickets/recent', undefined, {
+        cookie: staffCookie,
+        'x-station-id': device,
+      })
+    ).statusCode,
+    200,
   );
-  await call('POST', `/events/${event.id}/close`);
-  const second = (
-    await call('POST', '/events', { ...settings, eventName: 'Next event' })
-  ).json<EventConfig>();
-  await call('POST', `/events/${second.id}/activate`);
+});
+test('reset deletes customer data and invalidates staff sessions while preserving settings', async () => {
+  const t = await finalTicket();
+  const token = t.deliveryPath!.split('/').at(-1)!;
+  const oldId = event.id;
+  assert.equal(
+    (await call('POST', '/reset', {}, { cookie: staffCookie, 'x-station-id': device })).statusCode,
+    401,
+  );
+  const result = await call('POST', '/reset');
+  assert.equal(result.statusCode, 200, result.body);
+  assert.notEqual(result.json<EventConfig>().id, oldId);
+  assert.equal(result.json<EventConfig>().eventName, settings.eventName);
+  assert.equal(
+    (await call('GET', `/delivery/${token}`, undefined, {} as ReturnType<typeof headers>))
+      .statusCode,
+    404,
+  );
   assert.equal(
     (
       await call('GET', '/tickets/recent', undefined, {
@@ -188,6 +188,20 @@ test('activation locks settings and old staff authorization cannot access a late
       })
     ).statusCode,
     401,
+  );
+  assert.equal((store.sql.prepare('SELECT count(*) AS n FROM photos').get() as { n: number }).n, 0);
+  for (const directory of ['originals', 'previews', 'thumbnails', 'finals'])
+    assert.deepEqual(await readdir(join(root, directory)), []);
+  assert.equal(
+    (
+      await call(
+        'POST',
+        '/login',
+        { kind: 'staff', passcode: staffPasscode },
+        {} as ReturnType<typeof headers>,
+      )
+    ).statusCode,
+    200,
   );
 });
 test('duplicate uploads are deduplicated and identifiers survive exclusions', async () => {
@@ -314,7 +328,7 @@ test('submission publishes only chosen finals, remains idempotent and print comp
       .statusCode,
     409,
   );
-  await call('PATCH', `/events/${event.id}/downloads`, { enabled: false });
+  await call('POST', '/settings', { ...settings, staffPasscode: '', digitalEnabled: false });
   assert.equal(
     (await call('GET', `/delivery/${token}`, undefined, {} as ReturnType<typeof headers>))
       .statusCode,
@@ -428,20 +442,12 @@ test('saved crops are rectangular and limited to landscape or portrait photo rat
   assert.equal(restored.cropAspect, 2 / 3);
   assert.ok(Math.abs(restored.crop.width / restored.crop.height - 2 / 3) < 0.00001);
 });
-test('state survives restart and historical downloads retain their event branding', async () => {
+test('settings and downloads survive restart', async () => {
   const t = await finalTicket();
-  await call('POST', `/events/${event.id}/close`);
-  const next = (
-    await call('POST', '/events', {
-      ...settings,
-      eventName: 'Another event',
-    })
-  ).json<EventConfig>();
-  await call('POST', `/events/${next.id}/activate`);
   await app.close();
   ({ app, store } = await createApp({ root, setupPasscode, serveClient: false }));
   const token = t.deliveryPath!.split('/').at(-1)!;
   const old = await call('GET', `/delivery/${token}`, undefined, {} as ReturnType<typeof headers>);
   assert.equal(old.json().event.eventName, settings.eventName);
-  assert.equal(store.active()!.id, next.id);
+  assert.equal(store.active()!.id, event.id);
 });

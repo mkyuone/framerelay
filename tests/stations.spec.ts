@@ -36,13 +36,11 @@ async function login(request: APIRequestContext) {
 }
 async function event(request: APIRequestContext, limit = 1) {
   await login(request);
-  const events = (await (await request.get('/api/events')).json()) as EventConfig[];
-  for (const e of events)
-    if (e.status === 'active') await request.post(`/api/events/${e.id}/close`);
+  const bootstrap = await (await request.get('/api/bootstrap')).json();
+  if (bootstrap.event) expect((await request.post('/api/reset')).ok()).toBeTruthy();
   const e = (await (
-    await request.post('/api/events', { data: { ...settings, selectionLimit: limit } })
+    await request.post('/api/settings', { data: { ...settings, selectionLimit: limit } })
   ).json()) as EventConfig;
-  expect((await request.post(`/api/events/${e.id}/activate`)).ok()).toBeTruthy();
   return e;
 }
 async function image(index = 0, width = 1200, height = 800) {
@@ -136,13 +134,12 @@ test('setup and complete a one-photo customer through all four stations', async 
   await page.goto('/settings');
   await page.getByLabel('Operator passcode').fill('browser-test-operator-passcode');
   await page.getByRole('button', { name: 'Unlock setup' }).click();
-  await page.getByRole('button', { name: 'New event' }).click();
-  await page.getByLabel('Event name (optional)', { exact: true }).fill(settings.eventName);
+  await page.getByLabel('Display name (optional)', { exact: true }).fill(settings.eventName);
   await page.getByText('Appearance', { exact: true }).click();
   await page.getByLabel('Default footer text').fill(settings.footerText);
-  await page.getByLabel('Shared event passcode').fill(settings.staffPasscode);
-  await page.getByRole('button', { name: 'Activate event' }).click();
-  await expect(page.getByRole('heading', { name: 'Your event is running.' })).toBeVisible();
+  await page.getByLabel('Staff passcode').fill(settings.staffPasscode);
+  await page.getByRole('button', { name: 'Save settings' }).click();
+  await expect(page.getByRole('heading', { name: 'Customize FrameRelay.' })).toBeVisible();
   await page.goto('/registration');
   await page.getByRole('button', { name: 'Create first ticket' }).click();
   await expect(page.locator('.qr-block img')).toBeVisible();
@@ -494,19 +491,16 @@ test('optional event name, Inter typography, footer role switching and scanner s
   page,
 }) => {
   await login(page.request);
-  const events = (await (await page.request.get('/api/events')).json()) as EventConfig[];
-  for (const event of events)
-    if (event.status === 'active') await page.request.post(`/api/events/${event.id}/close`);
   await page.goto('/settings');
-  await page.getByRole('button', { name: 'New event', exact: true }).click();
-  await expect(page.getByLabel('Event name (optional)', { exact: true })).not.toHaveAttribute(
+  await page.getByLabel('Display name (optional)', { exact: true }).fill('');
+  await expect(page.getByLabel('Display name (optional)', { exact: true })).not.toHaveAttribute(
     'required',
   );
   await expect(page.getByLabel('Organization name', { exact: true })).toHaveCount(0);
   await expect(page.getByLabel('Photobooth display name', { exact: true })).toHaveCount(0);
-  await page.getByLabel('Shared event passcode').fill(settings.staffPasscode);
-  await page.getByRole('button', { name: 'Activate event', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Your event is running.' })).toBeVisible();
+  await page.getByLabel('Staff passcode').fill(settings.staffPasscode);
+  await page.getByRole('button', { name: 'Save settings', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Customize FrameRelay.' })).toBeVisible();
   await page.goto('/selection');
   await expect(
     page.getByRole('heading', { name: 'Scan customer ticket', exact: true }),
@@ -964,7 +958,7 @@ test('station unlock is one message, one field and one button', async ({ page })
   await page.context().clearCookies();
   await page.goto('/selection');
   await expect(
-    page.getByRole('heading', { name: 'Enter the event passcode', exact: true }),
+    page.getByRole('heading', { name: 'Enter the staff passcode', exact: true }),
   ).toBeVisible();
   await expect(page.locator('.access-card h1')).toHaveCount(1);
   await expect(page.locator('.access-card input')).toHaveCount(1);
@@ -985,7 +979,7 @@ test('station unlock is one message, one field and one button', async ({ page })
     ).toBeTruthy();
     await shot(page, `simple-unlock-${viewport.width}.png`);
   }
-  await page.getByLabel('Event passcode', { exact: true }).fill(settings.staffPasscode);
+  await page.getByLabel('Staff passcode', { exact: true }).fill(settings.staffPasscode);
   await page.getByRole('button', { name: 'Open station', exact: true }).click();
   await expect(
     page.getByRole('heading', { name: 'Scan customer ticket', exact: true }),

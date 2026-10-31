@@ -35,7 +35,7 @@ const eventSchema = z
     printWidth: z.number().min(1).max(36),
     printHeight: z.number().min(1).max(36),
     copies: z.number().int().min(1).max(10),
-    staffPasscode: z.string().min(8).max(128),
+    staffPasscode: z.union([z.literal(''), z.string().min(8).max(128)]).default(''),
   })
   .refine(
     (value) => value.printEnabled || value.digitalEnabled,
@@ -74,6 +74,20 @@ export async function createApp(options: {
     limits: { fileSize: 50 * 1024 * 1024, fieldSize: 12 * 1024 * 1024, files: 1, fields: 4 },
   });
   const uploads = new Map<string, number>();
+  let activeWrites = 0;
+  app.addHook('onRequest', async (req) => {
+    if (
+      req.url.startsWith('/api/') &&
+      !['GET', 'HEAD', 'OPTIONS'].includes(req.method) &&
+      req.url !== '/api/reset'
+    ) {
+      activeWrites++;
+      (req as typeof req & { countedWrite?: boolean }).countedWrite = true;
+    }
+  });
+  app.addHook('onResponse', async (req) => {
+    if ((req as typeof req & { countedWrite?: boolean }).countedWrite) activeWrites--;
+  });
   const owner = (req: { headers: Record<string, unknown> }) => {
     const value = req.headers['x-station-id'];
     demand(
@@ -91,11 +105,11 @@ export async function createApp(options: {
     );
   const staff = (req: { cookies: Record<string, string | undefined> }) => {
     const event = store.active();
-    demand(event, 'No active event. Open event setup first.', 409);
+    demand(event, 'Stations are not configured. Open setup first.', 409);
     demand(
       store.authenticate(req.cookies.fr_staff, 'staff', event.id) ||
         store.authenticate(req.cookies.fr_operator, 'operator'),
-      'Enter the event passcode to continue.',
+      'Enter the staff passcode to continue.',
       401,
     );
     return event;
@@ -189,39 +203,29 @@ export async function createApp(options: {
     reply.clearCookie('fr_staff', { path: '/' }).clearCookie('fr_operator', { path: '/' });
     return { ok: true };
   });
-  app.get('/api/events', async (req) => {
-    operator(req);
-    return store.listEvents();
-  });
-  app.post('/api/events', async (req) => {
+  app.post('/api/settings', async (req) => {
     operator(req);
     const body = eventSchema.parse(req.body);
-    const { staffPasscode, ...fields } = body;
-    return store.saveEvent(
-      {
-        ...fields,
-        id: fields.id ?? randomUUID(),
-        status: 'draft',
-        downloadsEnabled: true,
-      } as EventConfig,
-      hashPasscode(staffPasscode),
+    const current = store.active();
+    demand(current || body.staffPasscode, 'Set a staff passcode of at least 8 characters.', 400);
+    const { staffPasscode, id: _id, ...fields } = body;
+    const settings = {
+      ...fields,
+      id: current?.id ?? randomUUID(),
+      status: 'active',
+      downloadsEnabled: true,
+    } as EventConfig;
+    const hash = staffPasscode ? hashPasscode(staffPasscode) : store.staffHash(settings.id)!;
+    if (staffPasscode && current) store.sql.prepare("DELETE FROM auth WHERE kind = 'staff'").run();
+    return store.saveSettings(settings, hash);
+  });
+  app.post('/api/reset', async (req) => {
+    operator(req);
+    demand(
+      activeWrites === 0,
+      'Wait for ongoing uploads and edits to finish before clearing data.',
     );
-  });
-  app.post<{ Params: { id: string } }>('/api/events/:id/activate', async (req) => {
-    operator(req);
-    return store.activateEvent(req.params.id);
-  });
-  app.post<{ Params: { id: string } }>('/api/events/:id/close', async (req) => {
-    operator(req);
-    demand(![...uploads.values()].some((n) => n > 0), 'Wait for active uploads to finish.');
-    store.closeEvent(req.params.id);
-    return { ok: true };
-  });
-  app.patch<{ Params: { id: string } }>('/api/events/:id/downloads', async (req) => {
-    operator(req);
-    const { enabled } = z.object({ enabled: z.boolean() }).parse(req.body);
-    store.setDownloads(req.params.id, enabled);
-    return { ok: true };
+    return store.resetData();
   });
   app.post('/api/assets', async (req) => {
     operator(req);

@@ -37,7 +37,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     try {
       message = (await response.json()).message ?? message;
     } catch {}
-    if (response.status === 401 || message.startsWith('No active event.'))
+    if (response.status === 401 || message.startsWith('Stations are not configured.'))
       window.dispatchEvent(new Event('framerelay:authorization'));
     throw new ApiError(message, response.status);
   }

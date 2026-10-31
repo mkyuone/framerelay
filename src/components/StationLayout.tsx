@@ -153,12 +153,12 @@ function LocalSettings({ extra, onNavigate }: { extra?: ReactNode; onNavigate: (
         Footer text override
         <input
           value={prefs.footerOverride ?? ''}
-          placeholder="Use the event footer"
+          placeholder="Use the default footer"
           maxLength={240}
           onChange={(e) => updatePrefs({ footerOverride: e.target.value || null })}
         />
       </label>
-      <p className="field-hint">Saved only in this browser for this event and station.</p>
+      <p className="field-hint">Saved only in this browser for this station.</p>
       {station === 'registration' ? (
         <label>
           QR display size
@@ -240,7 +240,7 @@ function LocalSettings({ extra, onNavigate }: { extra?: ReactNode; onNavigate: (
       {extra}
       <Button onClick={resetPrefs}>Reset station preferences</Button>
       <Link className="text-link" to="/settings">
-        Operator event setup →
+        Operator setup →
       </Link>
       <Button onClick={() => void post('/logout').then(refresh)}>
         <LogOut size={16} />

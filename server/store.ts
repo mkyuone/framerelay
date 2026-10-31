@@ -3,7 +3,7 @@ import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { eq } from 'drizzle-orm';
 import { randomBytes, randomUUID, createHash } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import type { EventConfig, Photo, Ticket } from '../shared/types.ts';
 
@@ -231,9 +231,7 @@ export function createStore(root: string) {
     claim,
     requireClaim,
     close: () => sql.close(),
-    saveEvent(event: EventConfig, staffHash: string) {
-      const old = config(event.id);
-      demand(!old || old.status === 'draft', 'Event settings lock when activated.');
+    saveSettings(event: EventConfig, staffHash: string) {
       orm
         .insert(events)
         .values({ id: event.id, config: JSON.stringify(event), staffHash })
@@ -244,38 +242,31 @@ export function createStore(root: string) {
         .run();
       return event;
     },
-    activateEvent: sql.transaction((id: string) => {
-      demand(!active(), 'Close the current event before activating another.');
-      const event = config(id);
-      demand(event?.status === 'draft', 'Only draft events can be activated.');
-      event.status = 'active';
-      orm
-        .update(events)
-        .set({ config: JSON.stringify(event) })
-        .where(eq(events.id, id))
-        .run();
-      return event;
-    }),
-    closeEvent(id: string) {
-      const event = config(id);
-      demand(event?.status === 'active', 'Event is not active.');
-      event.status = 'closed';
-      orm
-        .update(events)
-        .set({ config: JSON.stringify(event) })
-        .where(eq(events.id, id))
-        .run();
-      sql.prepare("DELETE FROM auth WHERE event_id = ? AND kind = 'staff'").run(id);
-    },
-    setDownloads(id: string, enabled: boolean) {
-      const event = config(id);
-      demand(event, 'Event not found.', 404);
-      event.downloadsEnabled = enabled;
-      orm
-        .update(events)
-        .set({ config: JSON.stringify(event) })
-        .where(eq(events.id, id))
-        .run();
+    resetData() {
+      const current = active();
+      demand(current, 'Configure the stations first.');
+      demand(
+        !sql
+          .prepare("SELECT 1 FROM photos WHERE render_status IN ('pending', 'processing') LIMIT 1")
+          .get(),
+        'Wait for pending photo exports to finish before clearing data.',
+      );
+      const next = { ...current, id: randomUUID() };
+      const hash = orm.select().from(events).where(eq(events.id, current.id)).get()!.staffHash;
+      sql.transaction(() => {
+        sql.prepare('DELETE FROM photos').run();
+        sql.prepare('DELETE FROM sessions').run();
+        sql.prepare("DELETE FROM auth WHERE kind = 'staff'").run();
+        sql.prepare('DELETE FROM events').run();
+        orm
+          .insert(events)
+          .values({ id: next.id, config: JSON.stringify(next), staffHash: hash })
+          .run();
+      })();
+      for (const name of ['originals', 'previews', 'thumbnails', 'finals', 'assets', 'incoming'])
+        for (const entry of readdirSync(join(root, name)))
+          rmSync(join(root, name, entry), { recursive: true, force: true });
+      return next;
     },
     staffHash(id: string) {
       return orm.select().from(events).where(eq(events.id, id)).get()?.staffHash;

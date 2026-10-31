@@ -1,6 +1,6 @@
 # FrameRelay
 
-A single-server photobooth workflow: registration → photography → selection/editing → manual printing and private digital delivery. One deployment serves one active event. Previous events retain their own settings and download links.
+A single-server photobooth workflow: registration → photography → selection/editing → manual printing and private digital delivery. One deployment serves a single shared workflow with editable settings.
 
 ## Local development
 
@@ -11,7 +11,7 @@ npm install
 npm run dev
 ```
 
-Open [FrameRelay](http://127.0.0.1:5173). The first run creates a gitignored `.env` containing a randomly generated `SETUP_PASSCODE`. Open that file locally, then visit **Event setup**, unlock it with that passcode, and set the shared staff passcode. The event name is optional; no organization or photobooth details are collected. There are no default credentials or seeded events.
+Open [FrameRelay](http://127.0.0.1:5173). The first run creates a gitignored `.env` containing a randomly generated `SETUP_PASSCODE`. Open that file locally, then visit **Setup**, unlock it with that passcode, and set the shared staff passcode. The event name is optional; no organization or photobooth details are collected. There are no default credentials or seeded events.
 
 For full-resolution server export, install Chromium using the same cache location as `.env`:
 
@@ -37,13 +37,15 @@ Switch station roles using **Station settings** in the bottom-right corner. The 
 
 Image filenames follow `T0001_01_20261031T062608123Z.jpg`: globally unique ticket, stable source image number within the ticket, UTC upload/version timestamp. Original camera names remain metadata. Exclusions never renumber images or delete originals.
 
-Grid thumbnails fill a 3:2 frame without letterboxing; this display crop never changes the original image. Full-image inspection supports scroll/pinch zoom, panning and a thumbnail navigator. Photography offers highlight zebras, enabled by default, without changing the image. Photography and Select & Edit show every capture in one scrolling images area while their controls, header and footer stay fixed. Excluded selection photos stay in place, darkened with one diagonal strike-through, and can be restored. Long queues, settings and unusually tall content use contained scrolling. Local settings are scoped by event, station and browser; their footer override does not change the event default.
+Grid thumbnails fill a 3:2 frame without letterboxing; this display crop never changes the original image. Full-image inspection supports scroll/pinch zoom, panning and a thumbnail navigator. Photography offers highlight zebras, enabled by default, without changing the image. Photography and Select & Edit show every capture in one scrolling images area while their controls, header and footer stay fixed. Excluded selection photos stay in place, darkened with one diagonal strike-through, and can be restored. Long queues, settings and unusually tall content use contained scrolling. Local settings are scoped by the current workflow, station and browser; their footer override does not change the event default.
 
-## Event configuration
+## Setup and clearing data
 
-The operator interface has one optional event name and a required shared event passcode. Delivery settings expand to show 1–5 finals (default 1), print dimensions/copies (default 6 × 4 inches, one copy), and independent print/digital toggles. Colors and default footer text are under Appearance. At least one delivery method is required. Existing events and photographs remain compatible; legacy identity metadata is not displayed or returned by the current event interface.
+The operator can set an optional display name, staff passcode, delivery settings, colors and default footer text. Settings can be changed at any time and apply to the current workflow. Changing the staff passcode signs staff out.
 
-Activation freezes settings. Close the event before creating the next one; closing removes staff access to that event, so finish customers and printing first. Downloads remain available after closure and after another event activates, until the operator explicitly disables them. No automatic deletion is performed.
+When work is complete, an operator can choose **Clear all data** in Setup and type `CLEAR` to confirm. This deletes all server-side tickets, photos, print queues and download links, including historical records from previous versions. Settings and the staff passcode are retained; staff must sign in again. Wait for uploads and exports to finish, and back up anything needed before clearing. Browser-local drafts or uploads on other devices and separate backups are not erased by the server reset.
+
+Existing active event settings continue to work after upgrading. Historical downloads remain available until data is cleared; they keep their historical settings. If no event was active, set up the stations before use.
 
 Inter is bundled and served locally through Fontsource, including the photo editor. The editor, QR scanner and all application assets run locally; no CDN, analytics, email, external storage or payment integration is required.
 
@@ -92,6 +94,6 @@ npm run test:e2e
 
 Run the build before browser tests. Playwright uses a separate temporary database/server on port 3401 and does not seed your development event. Screenshots/traces are stored outside the repository. `QA_ARTIFACT_DIR` can override the screenshot destination; `QA_PHOTO_PATH` can supply a local sample photo for visual QA.
 
-Backend tests cover authorization, event locking/isolation, upload deduplication, exclusions, concurrent selection claims, publication, print status, restart recovery and old-event branding. Browser tests cover all stations, local preferences, responsive layouts and five 24 MP exports including the server fallback.
+Backend tests cover authorization, settings and reset behavior, upload deduplication, exclusions, concurrent selection claims, publication, print status, restart recovery and old-event branding. Browser tests cover all stations, local preferences, responsive layouts and five 24 MP exports including the server fallback.
 
 Before event use, test QR scans from photographed phone screens, actual school iPads/Safari, the real Lightroom export folder, school Wi-Fi upload performance and manual PaperCut release. Chromium viewport emulation cannot establish physical-device compatibility.

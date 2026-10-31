@@ -9,8 +9,8 @@ export default function Auth() {
   const hasEvent = !!bootstrap?.event;
   return (
     <PasscodePrompt
-      message={hasEvent ? 'Enter the event passcode' : 'Enter the operator passcode'}
-      label={hasEvent ? 'Event passcode' : 'Operator passcode'}
+      message={hasEvent ? 'Enter the staff passcode' : 'Enter the operator passcode'}
+      label={hasEvent ? 'Staff passcode' : 'Operator passcode'}
       buttonText={hasEvent ? 'Open station' : 'Open setup'}
       onUnlock={async (passcode) => {
         await post('/login', { kind: hasEvent ? 'staff' : 'operator', passcode });

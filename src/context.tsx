@@ -30,7 +30,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     void refresh();
     const renew = () => void refresh();
     window.addEventListener('framerelay:authorization', renew);
-    return () => window.removeEventListener('framerelay:authorization', renew);
+    const timer = window.setInterval(renew, 10000);
+    return () => {
+      window.removeEventListener('framerelay:authorization', renew);
+      window.clearInterval(timer);
+    };
   }, [refresh]);
   return (
     <AppContext.Provider value={{ bootstrap, error, refresh }}>{children}</AppContext.Provider>

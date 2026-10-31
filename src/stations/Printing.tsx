@@ -53,7 +53,7 @@ export default function Printing() {
     >
       {!event.printEnabled ? (
         <Empty icon={<Printer size={44} />} title="Printing is disabled">
-          <p>This event uses digital delivery only.</p>
+          <p>Printing is disabled in setup.</p>
         </Empty>
       ) : (
         <div className={`printing-workspace ${prefs.queueDensity}`}>
